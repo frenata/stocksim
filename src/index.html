@@ -7,6 +7,15 @@
 <div id="main"></div>
 <script src="app.js"></script>
 <script>
-var node = document.getElementById('main');
-var app = Elm.Main.embed(node);
+var storedState = localStorage.getItem('portfolio');
+var startingState = storedState ? JSON.parse(storedState) : null
+var app = Elm.Main.fullscreen(startingState);
+
+app.ports.setStorage.subscribe(function(state) {
+	localStorage.setItem('portfolio', JSON.stringify(state));
+});
+
+app.ports.removeStorage.subscribe(function(state) {
+	localStorage.removeItem('portfolio');
+});
 </script>

@@ -8,16 +8,16 @@
 	align-items: center;
 }
 
-#top {
-	padding-top:25px;
+#error {
+	height:50px;
+}
+
+#main {
 	flex: 0 1 auto;
 }
 
-
-#main {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
+#quote {
+	min-height:150px;
 }
 
 #symbol input {
@@ -26,6 +26,11 @@
 
 #order input {
 	width: 50px;
+}
+
+td {
+	text-align: center;
+	padding: 5px;
 }
 
 fieldset {

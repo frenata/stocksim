@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (placeholder, class, type_, name, checked, id, style, autofocus, value)
@@ -7,15 +7,11 @@ import Http
 import Json.Decode exposing (float, string, int, Decoder)
 import Json.Decode.Pipeline exposing (decode, required, hardcoded, requiredAt)
 import Dict exposing (Dict)
-import Round exposing (round)
-
-
--- TODO
--- prettify interface
+import Round
 
 
 main =
-    Html.program
+    Html.programWithFlags
         { init = init
         , view = view
         , update = update
@@ -48,16 +44,25 @@ type alias Quote =
     { symbol : String, name : String, ask : Float, bid : Float }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { quote = Nothing
-      , symbol = ""
-      , orders = 1
-      , error = Nothing
-      , portfolio = blankPortfolio
-      }
-    , Cmd.none
-    )
+init : Maybe ( Float, List ( String, Position ) ) -> ( Model, Cmd Msg )
+init storage =
+    let
+        portfolio =
+            case storage of
+                Just ( balance, storedPortfolio ) ->
+                    (Portfolio balance (Dict.fromList storedPortfolio))
+
+                Nothing ->
+                    blankPortfolio
+    in
+        ( { quote = Nothing
+          , symbol = ""
+          , orders = 1
+          , error = Just "Search for stock symbols and build your portfolio."
+          , portfolio = portfolio
+          }
+        , Cmd.none
+        )
 
 
 blankPortfolio : Portfolio
@@ -78,6 +83,7 @@ type Msg
     | SellStock
     | IncOrders
     | DecOrders
+    | ResetPortfolio
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -90,7 +96,7 @@ update msg model =
             ( { model | error = Just "Symbol unrecognized." }, Cmd.none )
 
         NewSymbol symbol ->
-            ( { model | symbol = symbol }, Cmd.none )
+            ( { model | symbol = String.toUpper symbol }, Cmd.none )
 
         NewOrders input ->
             let
@@ -106,10 +112,10 @@ update msg model =
             ( { model | symbol = symbol }, pullQuote symbol )
 
         BuyStock ->
-            ( buy model, Cmd.none )
+            storeModel <| buy model
 
         SellStock ->
-            ( sell model, Cmd.none )
+            storeModel <| sell model
 
         IncOrders ->
             ( { model | orders = model.orders + 1 }, Cmd.none )
@@ -119,6 +125,9 @@ update msg model =
                 ( { model | orders = 0 }, Cmd.none )
             else
                 ( { model | orders = model.orders - 1 }, Cmd.none )
+
+        ResetPortfolio ->
+            ( { model | portfolio = blankPortfolio }, removeStorage (storePortfolio model.portfolio) )
 
 
 
@@ -245,10 +254,12 @@ view : Model -> Html Msg
 view model =
     div
         [ id "app" ]
-        [ div [ id "top" ] [ viewError model.error ]
+        [ viewError model.error
         , div [ id "main" ]
             [ viewQuote model
+            , viewOrders model.orders
             , viewPortfolio model.portfolio
+            , div [ id "reset" ] [ button [ onClick ResetPortfolio ] [ text "Reset" ] ]
             ]
         ]
 
@@ -273,13 +284,12 @@ viewQuote model =
             div [ id "quote" ]
                 [ viewSymbol model.symbol
                 , p [] [ text quote.name ]
-                , p [] [ text (toString quote.ask) ]
-                , p [] [ text (toString quote.bid) ]
-                , viewOrders model.orders
+                , p [] [ text ("Buy: $" ++ (toString quote.ask)) ]
+                , p [] [ text ("Sell: $" ++ (toString quote.bid)) ]
                 ]
 
         Nothing ->
-            div [ id "quote" ] [ viewSymbol model.symbol, viewOrders model.orders ]
+            div [ id "quote" ] [ viewSymbol model.symbol ]
 
 
 viewOrders : Int -> Html Msg
@@ -311,7 +321,7 @@ viewPortfolio portfolio =
     in
         div [ id "portfolio" ]
             [ p []
-                [ text <| "Cash: " ++ Round.round 2 portfolio.balance ]
+                [ text <| "Cash: $" ++ Round.round 2 portfolio.balance ]
             , table [ id "positions" ]
                 (List.map (\p -> printPosition p) list)
             ]
@@ -333,6 +343,27 @@ printPosition position =
 
 
 
+--PORTS
+
+
+storePortfolio : Portfolio -> ( Float, List ( String, Position ) )
+storePortfolio portfolio =
+    ( portfolio.balance, Dict.toList portfolio.positions )
+
+
+storeModel : Model -> ( Model, Cmd Msg )
+storeModel model =
+    ( model, setStorage (storePortfolio model.portfolio) )
+
+
+port setStorage : ( Float, List ( String, Position ) ) -> Cmd msg
+
+
+port removeStorage : ( Float, List ( String, Position ) ) -> Cmd msg
+
+
+
+--port removeStorage : ( Float, List ( String, Position ) ) -> Cmd msg
 --SUBSCRIPTIONS
 
 
