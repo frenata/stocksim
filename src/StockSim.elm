@@ -6,8 +6,6 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (float, string, int, Decoder)
 import Json.Decode.Pipeline exposing (decode, required, hardcoded, requiredAt)
-import Task
-import Regex
 import Dict exposing (Dict)
 import Round exposing (round)
 
@@ -54,7 +52,7 @@ init : ( Model, Cmd Msg )
 init =
     ( { quote = Nothing
       , symbol = ""
-      , orders = 0
+      , orders = 1
       , error = Nothing
       , portfolio = blankPortfolio
       }
@@ -78,6 +76,8 @@ type Msg
     | GetSymbol String
     | BuyStock
     | SellStock
+    | IncOrders
+    | DecOrders
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -97,83 +97,86 @@ update msg model =
                 orders =
                     Result.withDefault model.orders (String.toInt input)
             in
-                ( { model | orders = orders }, Cmd.none )
+                if orders < 0 then
+                    ( { model | orders = 0 }, Cmd.none )
+                else
+                    ( { model | orders = orders }, Cmd.none )
 
         GetSymbol symbol ->
-            ( model, pullQuote symbol )
+            ( { model | symbol = symbol }, pullQuote symbol )
 
         BuyStock ->
-            ( { model | portfolio = buy model.portfolio model.quote model.orders }, Cmd.none )
+            ( buy model, Cmd.none )
 
         SellStock ->
-            ( { model | portfolio = sell model.portfolio model.quote model.orders }, Cmd.none )
+            ( sell model, Cmd.none )
+
+        IncOrders ->
+            ( { model | orders = model.orders + 1 }, Cmd.none )
+
+        DecOrders ->
+            if model.orders <= 0 then
+                ( { model | orders = 0 }, Cmd.none )
+            else
+                ( { model | orders = model.orders - 1 }, Cmd.none )
 
 
 
 --QUOTE functions
 
 
-buy : Portfolio -> Maybe Quote -> Int -> Portfolio
-buy portfolio quote n =
-    case quote of
+buy : Model -> Model
+buy model =
+    case model.quote of
         Just quote ->
             let
                 shares =
-                    newShares portfolio.positions quote n
+                    newShares model.portfolio.positions quote model.orders
 
                 price =
-                    newPrice portfolio.positions quote n
+                    newPrice model.portfolio.positions quote model.orders
 
                 balance =
-                    portfolio.balance - (quote.ask * (toFloat n))
+                    model.portfolio.balance - (quote.ask * (toFloat model.orders))
 
                 positions =
-                    updatePosition portfolio.positions quote price shares
+                    updatePosition model.portfolio.positions quote price shares
             in
                 if balance < 0 then
-                    portfolio
+                    { model | orders = Basics.floor (model.portfolio.balance / quote.ask) }
                 else
-                    { portfolio
-                        | balance = balance
-                        , positions = positions
-                    }
+                    { model | portfolio = (Portfolio balance positions) }
 
         Nothing ->
-            portfolio
+            model
 
 
-sell : Portfolio -> Maybe Quote -> Int -> Portfolio
-sell portfolio quote n =
-    case quote of
+sell : Model -> Model
+sell model =
+    case model.quote of
         Just quote ->
             let
                 shares =
-                    newShares portfolio.positions quote -n
+                    newShares model.portfolio.positions quote -model.orders
 
                 price =
-                    newPrice portfolio.positions quote 0
+                    newPrice model.portfolio.positions quote 0
 
                 balance =
-                    portfolio.balance + (quote.bid * (toFloat n))
+                    model.portfolio.balance + (quote.bid * (toFloat model.orders))
 
                 positions =
-                    updatePosition portfolio.positions quote price shares
+                    updatePosition model.portfolio.positions quote price shares
             in
                 if shares < 0 then
-                    portfolio
+                    { model | orders = (newShares model.portfolio.positions quote 0) }
                 else if shares == 0 then
-                    { portfolio
-                        | balance = balance
-                        , positions = Dict.remove quote.symbol positions
-                    }
+                    { model | portfolio = (Portfolio balance (Dict.remove quote.symbol positions)) }
                 else
-                    { portfolio
-                        | balance = balance
-                        , positions = positions
-                    }
+                    { model | portfolio = (Portfolio balance positions) }
 
         Nothing ->
-            portfolio
+            model
 
 
 newShares : Dict String Position -> Quote -> Int -> Int
@@ -242,40 +245,62 @@ view : Model -> Html Msg
 view model =
     div
         [ id "app" ]
-        [ viewQuote model.quote
-        , viewError model.error
-        , form [ onSubmit (GetSymbol model.symbol) ]
-            [ input [ onInput NewSymbol, placeholder "Stock symbol", autofocus True ] [] ]
-        , input [ onInput NewOrders, placeholder "# of orders", value (toString model.orders) ] []
-        , button [ onClick BuyStock ] [ text "Buy" ]
-        , button [ onClick SellStock ] [ text "Sell" ]
-        , viewPortfolio model.portfolio
+        [ div [ id "top" ] [ viewError model.error ]
+        , div [ id "main" ]
+            [ viewQuote model
+            , viewPortfolio model.portfolio
+            ]
         ]
 
 
-viewQuote : Maybe Quote -> Html Msg
-viewQuote quote =
-    case quote of
+viewSymbol : String -> Html Msg
+viewSymbol symbol =
+    form [ id "symbol", onSubmit (GetSymbol symbol) ]
+        [ input
+            [ onInput NewSymbol
+            , placeholder "Stock symbol"
+            , autofocus True
+            , value symbol
+            ]
+            []
+        ]
+
+
+viewQuote : Model -> Html Msg
+viewQuote model =
+    case model.quote of
         Just quote ->
             div [ id "quote" ]
-                [ p [] [ text quote.symbol ]
+                [ viewSymbol model.symbol
                 , p [] [ text quote.name ]
                 , p [] [ text (toString quote.ask) ]
                 , p [] [ text (toString quote.bid) ]
+                , viewOrders model.orders
                 ]
 
         Nothing ->
-            div [ id "quote" ] []
+            div [ id "quote" ] [ viewSymbol model.symbol, viewOrders model.orders ]
+
+
+viewOrders : Int -> Html Msg
+viewOrders orders =
+    div [ id "order" ]
+        [ button [ onClick BuyStock ] [ text "Buy" ]
+        , button [ onClick IncOrders ] [ text "+" ]
+        , input [ onInput NewOrders, placeholder "# of orders", value (toString orders) ] []
+        , button [ onClick DecOrders ] [ text "-" ]
+        , button [ onClick SellStock ] [ text "Sell" ]
+        ]
 
 
 viewError : Maybe String -> Html Msg
 viewError error =
     case error of
         Nothing ->
-            p [] []
+            h3 [ id "error" ] []
 
         Just error ->
-            p [] [ text error ]
+            h3 [ id "error" ] [ text error ]
 
 
 viewPortfolio : Portfolio -> Html Msg

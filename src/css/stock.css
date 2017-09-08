@@ -8,13 +8,24 @@
 	align-items: center;
 }
 
-#weather {
+#top {
 	padding-top:25px;
-	min-height:170px;
 	flex: 0 1 auto;
 }
-#settings {
-	flex: 0 1 auto;
+
+
+#main {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+#symbol input {
+	text-align: center;
+}
+
+#order input {
+	width: 50px;
 }
 
 fieldset {
