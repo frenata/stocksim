@@ -75,7 +75,7 @@ type Msg
     = RequestQuote (Result Http.Error Quote)
     | NewSymbol String
     | NewOrders String
-    | GetSymbol
+    | GetSymbol String
     | BuyStock
     | SellStock
 
@@ -99,8 +99,8 @@ update msg model =
             in
                 ( { model | orders = orders }, Cmd.none )
 
-        GetSymbol ->
-            ( model, pullQuote model.symbol )
+        GetSymbol symbol ->
+            ( model, pullQuote symbol )
 
         BuyStock ->
             ( { model | portfolio = buy model.portfolio model.quote model.orders }, Cmd.none )
@@ -176,11 +176,6 @@ sell portfolio quote n =
             portfolio
 
 
-
---case shares of 0 -> Dict.remove quote.symbol positions
---_ -> Dict.insert quote.symbol (Position quote.name shares price) positions
-
-
 newShares : Dict String Position -> Quote -> Int -> Int
 newShares positions quote n =
     case Dict.get quote.symbol positions of
@@ -249,7 +244,7 @@ view model =
         [ id "app" ]
         [ viewQuote model.quote
         , viewError model.error
-        , form [ onSubmit GetSymbol ]
+        , form [ onSubmit (GetSymbol model.symbol) ]
             [ input [ onInput NewSymbol, placeholder "Stock symbol", autofocus True ] [] ]
         , input [ onInput NewOrders, placeholder "# of orders", value (toString model.orders) ] []
         , button [ onClick BuyStock ] [ text "Buy" ]
@@ -308,6 +303,7 @@ printPosition position =
             , td [] [ text details.name ]
             , td [] [ text <| toString details.shares ]
             , td [] [ text <| Round.round 2 details.price ]
+            , td [] [ button [ onClick (GetSymbol symbol) ] [ text "Get Quote" ] ]
             ]
 
 
