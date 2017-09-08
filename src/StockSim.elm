@@ -9,6 +9,14 @@ import Json.Decode.Pipeline exposing (decode, required, hardcoded, requiredAt)
 import Task
 import Regex
 import Dict exposing (Dict)
+import Round exposing (round)
+
+
+-- TODO
+-- allow buying/selling bulk
+-- prevent selling unowned shares
+-- prevent spending non-existent cash
+-- prettify interface
 
 
 main =
@@ -127,15 +135,22 @@ sell portfolio quote n =
 updatePosition : Dict String Position -> Quote -> Int -> Dict String Position
 updatePosition positions quote num =
     let
-        oldPosition =
-            Dict.get quote.symbol positions
-    in
-        case oldPosition of
-            Just oldPosition ->
-                Dict.insert quote.symbol (Position quote.name (oldPosition.shares + num) quote.ask) positions
+        ( shares, price ) =
+            case Dict.get quote.symbol positions of
+                Just old ->
+                    ( old.shares + num
+                    , (old.price * (toFloat old.shares) + quote.ask * (toFloat num)) / toFloat (old.shares + num)
+                    )
 
-            Nothing ->
-                Dict.insert quote.symbol (Position quote.name num quote.ask) positions
+                Nothing ->
+                    ( num, quote.ask )
+    in
+        case shares of
+            0 ->
+                Dict.remove quote.symbol positions
+
+            _ ->
+                Dict.insert quote.symbol (Position quote.name shares price) positions
 
 
 pullQuote : String -> Cmd Msg
@@ -185,6 +200,7 @@ view model =
             [ input [ onInput NewSymbol, placeholder "Stock symbol", autofocus True ] [] ]
         , button [ onClick BuyStock ] [ text "Buy" ]
         , button [ onClick SellStock ] [ text "Sell" ]
+        , viewPortfolio model.portfolio
         ]
 
 
@@ -211,6 +227,34 @@ viewError error =
 
         Just error ->
             p [] [ text error ]
+
+
+viewPortfolio : Portfolio -> Html Msg
+viewPortfolio portfolio =
+    let
+        list =
+            Dict.toList portfolio.positions
+    in
+        div [ id "portfolio" ]
+            [ p []
+                [ text <| "Cash: " ++ Round.round 2 portfolio.balance ]
+            , table [ id "positions" ]
+                (List.map (\p -> printPosition p) list)
+            ]
+
+
+printPosition : ( String, Position ) -> Html Msg
+printPosition position =
+    let
+        ( symbol, details ) =
+            position
+    in
+        tr []
+            [ td [] [ text symbol ]
+            , td [] [ text details.name ]
+            , td [] [ text <| toString details.shares ]
+            , td [] [ text <| Round.round 2 details.price ]
+            ]
 
 
 
