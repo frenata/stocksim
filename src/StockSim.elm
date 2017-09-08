@@ -8,6 +8,7 @@ import Json.Decode exposing (float, string, int, Decoder)
 import Json.Decode.Pipeline exposing (decode, required, hardcoded, requiredAt)
 import Task
 import Regex
+import Dict exposing (Dict)
 
 
 main =
@@ -32,11 +33,11 @@ type alias Model =
 
 
 type alias Portfolio =
-    { balance : Float, positions : List Position }
+    { balance : Float, positions : Dict String Position }
 
 
 type alias Position =
-    { symbol : String, shares : Int, price : Float }
+    { name : String, shares : Int, price : Float }
 
 
 type alias Quote =
@@ -56,7 +57,7 @@ init =
 
 blankPortfolio : Portfolio
 blankPortfolio =
-    Portfolio 100000.0 []
+    Portfolio 100000.0 Dict.empty
 
 
 
@@ -67,6 +68,8 @@ type Msg
     = RequestQuote (Result Http.Error Quote)
     | NewSymbol String
     | GetSymbol
+    | BuyStock
+    | SellStock
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -84,9 +87,55 @@ update msg model =
         GetSymbol ->
             ( model, pullQuote model.symbol )
 
+        BuyStock ->
+            ( { model | portfolio = buy model.portfolio model.quote 1 }, Cmd.none )
+
+        SellStock ->
+            ( { model | portfolio = sell model.portfolio model.quote -1 }, Cmd.none )
+
 
 
 --QUOTE functions
+
+
+buy : Portfolio -> Maybe Quote -> Int -> Portfolio
+buy portfolio quote n =
+    case quote of
+        Just quote ->
+            { portfolio
+                | balance = portfolio.balance - quote.ask
+                , positions = updatePosition portfolio.positions quote n
+            }
+
+        Nothing ->
+            portfolio
+
+
+sell : Portfolio -> Maybe Quote -> Int -> Portfolio
+sell portfolio quote n =
+    case quote of
+        Just quote ->
+            { portfolio
+                | balance = portfolio.balance + quote.bid
+                , positions = updatePosition portfolio.positions quote n
+            }
+
+        Nothing ->
+            portfolio
+
+
+updatePosition : Dict String Position -> Quote -> Int -> Dict String Position
+updatePosition positions quote num =
+    let
+        oldPosition =
+            Dict.get quote.symbol positions
+    in
+        case oldPosition of
+            Just oldPosition ->
+                Dict.insert quote.symbol (Position quote.name (oldPosition.shares + num) quote.ask) positions
+
+            Nothing ->
+                Dict.insert quote.symbol (Position quote.name num quote.ask) positions
 
 
 pullQuote : String -> Cmd Msg
@@ -134,6 +183,8 @@ view model =
         , viewError model.error
         , form [ onSubmit GetSymbol ]
             [ input [ onInput NewSymbol, placeholder "Stock symbol", autofocus True ] [] ]
+        , button [ onClick BuyStock ] [ text "Buy" ]
+        , button [ onClick SellStock ] [ text "Sell" ]
         ]
 
 
