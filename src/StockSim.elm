@@ -103,8 +103,8 @@ update msg model =
                 orders =
                     Result.withDefault model.orders (String.toInt input)
             in
-                if orders < 0 then
-                    ( { model | orders = 0 }, Cmd.none )
+                if orders <= 1 then
+                    ( { model | orders = 1 }, Cmd.none )
                 else
                     ( { model | orders = orders }, Cmd.none )
 
@@ -121,8 +121,8 @@ update msg model =
             ( { model | orders = model.orders + 1 }, Cmd.none )
 
         DecOrders ->
-            if model.orders <= 0 then
-                ( { model | orders = 0 }, Cmd.none )
+            if model.orders <= 1 then
+                ( { model | orders = 1 }, Cmd.none )
             else
                 ( { model | orders = model.orders - 1 }, Cmd.none )
 
@@ -168,6 +168,9 @@ sell model =
                 shares =
                     newShares model.portfolio.positions quote -model.orders
 
+                blankShares =
+                    newShares model.portfolio.positions quote 0
+
                 price =
                     newPrice model.portfolio.positions quote 0
 
@@ -177,8 +180,10 @@ sell model =
                 positions =
                     updatePosition model.portfolio.positions quote price shares
             in
-                if shares < 0 then
-                    { model | orders = (newShares model.portfolio.positions quote 0) }
+                if shares < 0 && blankShares > 0 then
+                    { model | orders = blankShares }
+                else if shares < 0 then
+                    { model | orders = 1 }
                 else if shares == 0 then
                     { model | portfolio = (Portfolio balance (Dict.remove quote.symbol positions)) }
                 else
