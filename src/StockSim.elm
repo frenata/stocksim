@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Html exposing (..)
-import Html.Attributes exposing (placeholder, class, type_, name, checked, id, style, autofocus)
+import Html.Attributes exposing (placeholder, class, type_, name, checked, id, style, autofocus, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (float, string, int, Decoder)
@@ -13,9 +13,6 @@ import Round exposing (round)
 
 
 -- TODO
--- allow buying/selling bulk
--- prevent selling unowned shares
--- prevent spending non-existent cash
 -- prettify interface
 
 
@@ -35,6 +32,7 @@ main =
 type alias Model =
     { quote : Maybe Quote
     , symbol : String
+    , orders : Int
     , error : Maybe String
     , portfolio : Portfolio
     }
@@ -56,6 +54,7 @@ init : ( Model, Cmd Msg )
 init =
     ( { quote = Nothing
       , symbol = ""
+      , orders = 0
       , error = Nothing
       , portfolio = blankPortfolio
       }
@@ -75,6 +74,7 @@ blankPortfolio =
 type Msg
     = RequestQuote (Result Http.Error Quote)
     | NewSymbol String
+    | NewOrders String
     | GetSymbol
     | BuyStock
     | SellStock
@@ -92,14 +92,21 @@ update msg model =
         NewSymbol symbol ->
             ( { model | symbol = symbol }, Cmd.none )
 
+        NewOrders input ->
+            let
+                orders =
+                    Result.withDefault model.orders (String.toInt input)
+            in
+                ( { model | orders = orders }, Cmd.none )
+
         GetSymbol ->
             ( model, pullQuote model.symbol )
 
         BuyStock ->
-            ( { model | portfolio = buy model.portfolio model.quote 1 }, Cmd.none )
+            ( { model | portfolio = buy model.portfolio model.quote model.orders }, Cmd.none )
 
         SellStock ->
-            ( { model | portfolio = sell model.portfolio model.quote -1 }, Cmd.none )
+            ( { model | portfolio = sell model.portfolio model.quote model.orders }, Cmd.none )
 
 
 
@@ -110,10 +117,26 @@ buy : Portfolio -> Maybe Quote -> Int -> Portfolio
 buy portfolio quote n =
     case quote of
         Just quote ->
-            { portfolio
-                | balance = portfolio.balance - quote.ask
-                , positions = updatePosition portfolio.positions quote n
-            }
+            let
+                shares =
+                    newShares portfolio.positions quote n
+
+                price =
+                    newPrice portfolio.positions quote n
+
+                balance =
+                    portfolio.balance - (quote.ask * (toFloat n))
+
+                positions =
+                    updatePosition portfolio.positions quote price shares
+            in
+                if balance < 0 then
+                    portfolio
+                else
+                    { portfolio
+                        | balance = balance
+                        , positions = positions
+                    }
 
         Nothing ->
             portfolio
@@ -123,34 +146,64 @@ sell : Portfolio -> Maybe Quote -> Int -> Portfolio
 sell portfolio quote n =
     case quote of
         Just quote ->
-            { portfolio
-                | balance = portfolio.balance + quote.bid
-                , positions = updatePosition portfolio.positions quote n
-            }
+            let
+                shares =
+                    newShares portfolio.positions quote -n
+
+                price =
+                    newPrice portfolio.positions quote 0
+
+                balance =
+                    portfolio.balance + (quote.bid * (toFloat n))
+
+                positions =
+                    updatePosition portfolio.positions quote price shares
+            in
+                if shares < 0 then
+                    portfolio
+                else if shares == 0 then
+                    { portfolio
+                        | balance = balance
+                        , positions = Dict.remove quote.symbol positions
+                    }
+                else
+                    { portfolio
+                        | balance = balance
+                        , positions = positions
+                    }
 
         Nothing ->
             portfolio
 
 
-updatePosition : Dict String Position -> Quote -> Int -> Dict String Position
-updatePosition positions quote num =
-    let
-        ( shares, price ) =
-            case Dict.get quote.symbol positions of
-                Just old ->
-                    ( old.shares + num
-                    , (old.price * (toFloat old.shares) + quote.ask * (toFloat num)) / toFloat (old.shares + num)
-                    )
 
-                Nothing ->
-                    ( num, quote.ask )
-    in
-        case shares of
-            0 ->
-                Dict.remove quote.symbol positions
+--case shares of 0 -> Dict.remove quote.symbol positions
+--_ -> Dict.insert quote.symbol (Position quote.name shares price) positions
 
-            _ ->
-                Dict.insert quote.symbol (Position quote.name shares price) positions
+
+newShares : Dict String Position -> Quote -> Int -> Int
+newShares positions quote n =
+    case Dict.get quote.symbol positions of
+        Just old ->
+            old.shares + n
+
+        Nothing ->
+            n
+
+
+newPrice : Dict String Position -> Quote -> Int -> Float
+newPrice positions quote n =
+    case Dict.get quote.symbol positions of
+        Just old ->
+            (old.price * (toFloat old.shares) + quote.ask * (toFloat n)) / toFloat (old.shares + n)
+
+        Nothing ->
+            quote.ask
+
+
+updatePosition : Dict String Position -> Quote -> Float -> Int -> Dict String Position
+updatePosition positions quote price shares =
+    Dict.insert quote.symbol (Position quote.name shares price) positions
 
 
 pullQuote : String -> Cmd Msg
@@ -198,6 +251,7 @@ view model =
         , viewError model.error
         , form [ onSubmit GetSymbol ]
             [ input [ onInput NewSymbol, placeholder "Stock symbol", autofocus True ] [] ]
+        , input [ onInput NewOrders, placeholder "# of orders", value (toString model.orders) ] []
         , button [ onClick BuyStock ] [ text "Buy" ]
         , button [ onClick SellStock ] [ text "Sell" ]
         , viewPortfolio model.portfolio
