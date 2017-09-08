@@ -48,3 +48,7 @@ td,th {
 fieldset {
 	border: none;
 }
+
+#code {
+	display: none;
+}
