@@ -259,12 +259,12 @@ view : Model -> Html Msg
 view model =
     div
         [ id "app" ]
-        [ viewError model.error
+        [ h3 [] [ text "Simple Stock Simulator" ]
+        , viewError model.error
         , div [ id "main" ]
             [ viewQuote model
             , viewOrders model.orders
             , viewPortfolio model.portfolio
-            , div [ id "reset" ] [ button [ onClick ResetPortfolio ] [ text "Reset" ] ]
             ]
         ]
 
@@ -312,10 +312,10 @@ viewError : Maybe String -> Html Msg
 viewError error =
     case error of
         Nothing ->
-            h3 [ id "error" ] []
+            p [ id "error" ] []
 
         Just error ->
-            h3 [ id "error" ] [ text error ]
+            p [ id "error" ] [ text error ]
 
 
 viewPortfolio : Portfolio -> Html Msg
@@ -325,10 +325,23 @@ viewPortfolio portfolio =
             Dict.toList portfolio.positions
     in
         div [ id "portfolio" ]
-            [ p []
-                [ text <| "Cash: $" ++ Round.round 2 portfolio.balance ]
+            [ div [ id "header" ]
+                [ hr [] []
+                , p [ id "title" ]
+                    [ text "Portfolio  "
+                    , button [ onClick ResetPortfolio ] [ text "Reset" ]
+                    ]
+                , p [] [ text <| "Cash: $" ++ Round.round 2 portfolio.balance ]
+                ]
             , table [ id "positions" ]
-                (List.map (\p -> printPosition p) list)
+                (tr []
+                    [ th [] [ text "Symbol" ]
+                    , th [] [ text "Name" ]
+                    , th [] [ text "Shares" ]
+                    , th [] [ text "Avg Price" ]
+                    ]
+                    :: (List.map (\p -> printPosition p) list)
+                )
             ]
 
 
@@ -368,7 +381,6 @@ port removeStorage : ( Float, List ( String, Position ) ) -> Cmd msg
 
 
 
---port removeStorage : ( Float, List ( String, Position ) ) -> Cmd msg
 --SUBSCRIPTIONS
 
 

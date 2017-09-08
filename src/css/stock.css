@@ -9,7 +9,7 @@
 }
 
 #error {
-	height:50px;
+	height:10px;
 }
 
 #main {
@@ -28,9 +28,21 @@
 	width: 50px;
 }
 
-td {
+#portfolio #header {
+	font-size: larger;
+}
+
+#portfolio hr {
+	width: 100px;
+}
+
+#title {
+	font-weight: bold;
+}
+
+td,th {
 	text-align: center;
-	padding: 5px;
+	padding: 10px;
 }
 
 fieldset {
