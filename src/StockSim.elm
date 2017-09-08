@@ -27,7 +27,16 @@ type alias Model =
     { quote : Maybe Quote
     , symbol : String
     , error : Maybe String
+    , portfolio : Portfolio
     }
+
+
+type alias Portfolio =
+    { balance : Float, positions : List Position }
+
+
+type alias Position =
+    { symbol : String, shares : Int, price : Float }
 
 
 type alias Quote =
@@ -39,9 +48,15 @@ init =
     ( { quote = Nothing
       , symbol = ""
       , error = Nothing
+      , portfolio = blankPortfolio
       }
     , Cmd.none
     )
+
+
+blankPortfolio : Portfolio
+blankPortfolio =
+    Portfolio 100000.0 []
 
 
 
