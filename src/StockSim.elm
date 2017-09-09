@@ -84,6 +84,7 @@ type Msg
     | IncOrders
     | DecOrders
     | ResetPortfolio
+    | NoMsg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -95,8 +96,12 @@ update msg model =
         RequestQuote (Err e) ->
             ( { model | error = Just "Symbol unrecognized." }, Cmd.none )
 
-        NewSymbol symbol ->
-            ( { model | symbol = String.toUpper symbol }, Cmd.none )
+        NewSymbol input ->
+            let
+                symbol =
+                    String.toUpper input
+            in
+                ( { model | symbol = symbol }, pullQuote symbol )
 
         NewOrders input ->
             let
@@ -128,6 +133,9 @@ update msg model =
 
         ResetPortfolio ->
             ( { model | portfolio = blankPortfolio }, removeStorage (storePortfolio model.portfolio) )
+
+        NoMsg ->
+            ( model, Cmd.none )
 
 
 
@@ -271,7 +279,7 @@ view model =
 
 viewSymbol : String -> Html Msg
 viewSymbol symbol =
-    form [ id "symbol", onSubmit (GetSymbol symbol) ]
+    form [ id "symbol", onSubmit NoMsg ]
         [ input
             [ onInput NewSymbol
             , placeholder "Stock symbol"
@@ -338,7 +346,7 @@ viewPortfolio portfolio =
                     [ th [] [ text "Symbol" ]
                     , th [] [ text "Name" ]
                     , th [] [ text "Shares" ]
-                    , th [] [ text "Avg Price" ]
+                    , th [] [ text "Avg Price Paid" ]
                     ]
                     :: (List.map (\p -> printPosition p) list)
                 )
