@@ -5,7 +5,7 @@ ASSETS = assets
 CSS = $(SRC)/css
 FONTS = $(ASSETS)/font
 
-all: build deploy clean
+all: build push deploy clean
 
 build: build-directory js html css favicon
 
@@ -27,6 +27,9 @@ css:
 
 favicon:
 	cp $(ASSETS)/favicon.ico $(BUILD)
+
+push:
+	git push
 
 deploy:
 	cp CNAME $(BUILD)/CNAME
