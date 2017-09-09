@@ -7,9 +7,9 @@
 
 ## ToDo
 * periodically pull down prices on every owned stock:
- * display total portfolio value
- * display for each stock: current sell price per unit
+ - display total portfolio value
+ - display for each stock: current sell price per unit
 * sell all button
 * adv. mode?
- * for each trade, charge 'broker's fee'
- * check available shares
+ - for each trade, charge 'broker's fee'
+ - check available shares
